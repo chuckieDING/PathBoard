@@ -3,7 +3,7 @@ import path from 'path';
 
 export interface IHCMarker {
   marker: string;
-  result: '阳性' | '阴性' | '1+' | '2+' | '3+' | '+' | '++' | '+++' | '不明';
+  result: string;
   description?: string;
 }
 
@@ -114,10 +114,10 @@ function parseMarkdownMeta(content: string): Partial<PathologyNote> & { rawConte
   if (ihcSection) {
     for (const line of ihcSection[1].split('\n')) {
       const m = line.match(/^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|[^\n]*$/);
-      if (m && !m[1].includes('标记物')) {
+      if (m && !m[1].includes('标记物') && m[1].trim() !== '---') {
         ihcMarkers.push({
-          marker: m[1].trim(),
-          result: m[2].trim() as IHCMarker['result'],
+          marker: m[1].replace(/\*\*/g, '').trim(),
+          result: m[2].replace(/\*\*/g, '').trim(),
         });
       }
     }
