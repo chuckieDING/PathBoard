@@ -425,34 +425,11 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
             <p style={{ color: 'var(--muted)' }}>暂无免疫组化数据</p>
           </Card>
         ) : (
-          <>
-            {/* Summary strip */}
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-6">
-              {[
-                { label: 'ER', count: note.ihcMarkers.filter(m => ['ER','ERα','雌激素受体'].includes(m.marker)).length },
-                { label: 'PR', count: note.ihcMarkers.filter(m => ['PR','孕激素受体','PgR'].includes(m.marker)).length },
-                { label: 'HER2', count: note.ihcMarkers.filter(m => ['HER2','HER-2','c-erbB-2'].includes(m.marker)).length },
-                { label: 'Ki-67', count: note.ihcMarkers.filter(m => m.marker.includes('Ki-67') || m.marker.includes('Ki67')).length },
-                { label: '总计', count: note.ihcMarkers.length },
-              ].map(s => (
-                <div
-                  key={s.label}
-                  className="rounded-xl border p-3 text-center"
-                  style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-                >
-                  <div className="text-2xl font-bold" style={{ color: 'var(--accent)' }}>{s.count}</div>
-                  <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Marker cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {note.ihcMarkers.map((m, i) => (
-                <MarkerCard key={i} marker={m} />
-              ))}
-            </div>
-          </>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {note.ihcMarkers.map((m, i) => (
+              <MarkerCard key={i} marker={m} />
+            ))}
+          </div>
         )
       )}
 
