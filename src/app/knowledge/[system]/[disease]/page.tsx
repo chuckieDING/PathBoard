@@ -135,6 +135,11 @@ function MarkerCard({ marker }: { marker: IHCMarker }) {
   const group = Object.entries(markerGroups).find(([k]) => marker.marker.includes(k));
   const tag = group ? group[1] : null;
 
+  // Extract zh label from marker name like "ER（雌激素受体）"
+  const zhMatch = marker.marker.match(/[（(]([^)）]+)[)）]$/);
+  const zhLabel = zhMatch ? zhMatch[1] : null;
+  const displayName = zhLabel ? marker.marker.replace(/[（(][^)）]+[)）]$/, '') : marker.marker;
+
   return (
     <div
       className="rounded-xl border p-4 transition-all hover:shadow-md"
@@ -144,15 +149,12 @@ function MarkerCard({ marker }: { marker: IHCMarker }) {
       <div className="flex items-start justify-between gap-2 mb-3">
         <div>
           <div className="font-mono font-bold text-base" style={{ color: 'var(--foreground)' }}>
-            {marker.marker}
+            {displayName}
           </div>
-          {tag && (
-            <span
-              className="inline-block mt-0.5 text-xs px-1.5 py-0.5 rounded-full"
-              style={{ backgroundColor: tag.color + '20', color: tag.color }}
-            >
-              {tag.zh}
-            </span>
+          {zhLabel && (
+            <div className="text-xs italic mt-0.5" style={{ color: 'var(--muted)' }}>
+              {zhLabel}
+            </div>
           )}
         </div>
         {/* Result badge */}
