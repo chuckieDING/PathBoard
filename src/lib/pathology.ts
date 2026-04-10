@@ -110,11 +110,16 @@ function parseMarkdownMeta(content: string): Partial<PathologyNote> & { rawConte
 
   // Parse IHC markers from markdown body
   const ihcMarkers: IHCMarker[] = [];
-  const ihcSection = content.match(/## 免疫组化标记物\n([\s\S]*?)(?=## |\n##|$)/i);
+  const ihcSection = content.match(/## 免疫组化标记物\n([\s\S]*?)(?=\n## |\Z)/i);
   if (ihcSection) {
     for (const line of ihcSection[1].split('\n')) {
       const m = line.match(/^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|[^\n]*$/);
-      if (m && !m[1].includes('标记物') && m[1].trim() !== '---') {
+      if (!m) continue;
+      const firstCell = m[1].trim();
+      if (firstCell === '---' || firstCell === '----' || firstCell.startsWith('-')) continue;
+      const pipeCount = (line.match(/\|/g) || []).length;
+      if (pipeCount > 4) continue;
+      if (!m[1].includes('标记物')) {
         ihcMarkers.push({
           marker: m[1].replace(/\*\*/g, '').trim(),
           result: m[2].replace(/\*\*/g, '').trim(),
