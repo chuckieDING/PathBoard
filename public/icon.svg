@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e40af"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="cell" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#93c5fd"/>
+      <stop offset="100%" stop-color="#dbeafe"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="url(#bg)"/>
+  <!-- Outer ring -->
+  <circle cx="256" cy="256" r="220" fill="none" stroke="#60a5fa" stroke-width="12" opacity="0.4"/>
+  <!-- Cell body - large ellipse -->
+  <ellipse cx="256" cy="270" rx="130" ry="110" fill="url(#cell)" opacity="0.95"/>
+  <!-- Nucleus -->
+  <ellipse cx="256" cy="255" rx="55" ry="48" fill="#1e3a8a" opacity="0.85"/>
+  <!-- Nucleolus -->
+  <circle cx="248" cy="248" r="18" fill="#93c5fd" opacity="0.7"/>
+  <!-- Chromatin dots -->
+  <circle cx="270" cy="262" r="6" fill="#bfdbfe" opacity="0.6"/>
+  <circle cx="238" cy="270" r="5" fill="#bfdbfe" opacity="0.6"/>
+  <circle cx="256" cy="278" r="4" fill="#bfdbfe" opacity="0.5"/>
+  <!-- Cell membrane irregular outline -->
+  <ellipse cx="256" cy="270" rx="130" ry="110" fill="none" stroke="#60a5fa" stroke-width="6" opacity="0.5"/>
+  <!-- Microscope lens effect - top highlight -->
+  <ellipse cx="210" cy="195" rx="35" ry="22" fill="white" opacity="0.15" transform="rotate(-30 210 195)"/>
+  <!-- Label: P -->
+  <text x="256" y="440" font-family="Arial, sans-serif" font-size="100" font-weight="bold"
+        fill="white" text-anchor="middle" opacity="0.9">P</text>
+</svg>
