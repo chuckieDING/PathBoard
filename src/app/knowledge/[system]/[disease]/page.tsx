@@ -277,7 +277,7 @@ function MarkdownContent({ content }: { content: string }) {
   );
 }
 
-type TabId = 'overview' | 'microscopy' | 'ihc' | 'diff' | 'guidelines' | 'literature';
+type TabId = 'overview' | 'gross' | 'microscopy' | 'ihc' | 'diff' | 'guidelines' | 'literature';
 
 export default function DiseasePage({ params }: { params: Promise<{ system: string; disease: string }> }) {
   const { system, disease } = use(params);
@@ -317,12 +317,14 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
 
   // Pre-extract markdown sections
   const overviewText = extractSection(note.rawContent, '疾病概述');
+  const grossText = extractSection(note.rawContent, '大体观察');
   const microscopyText = extractSection(note.rawContent, '病理特征（镜下所见）');
   const diffText = extractSection(note.rawContent, '鉴别诊断');
   const clinicalText = extractSection(note.rawContent, '临床意义');
 
   const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: 'overview', label: '📖 概述' },
+    { id: 'gross', label: '📦 大体观察', count: grossText ? 1 : 0 },
     { id: 'microscopy', label: '🔬 镜下特征', count: microscopyText ? 1 : 0 },
     { id: 'ihc', label: '🧪 免疫组化', count: note.ihcMarkers?.length },
     { id: 'diff', label: '⚖️ 鉴别诊断', count: note.differentialDiagnosis?.length || (diffText ? 1 : 0) },
@@ -401,6 +403,12 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
         overviewText
           ? <MarkdownContent content={overviewText} />
           : <p style={{ color: 'var(--muted)' }}>暂无疾病概述内容</p>
+      )}
+
+      {activeTab === 'gross' && (
+        grossText
+          ? <MarkdownContent content={grossText} />
+          : <p style={{ color: 'var(--muted)' }}>暂无大体观察内容</p>
       )}
 
       {activeTab === 'microscopy' && (
