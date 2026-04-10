@@ -492,6 +492,63 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
         <p style={{ color: 'var(--muted)' }} className="text-xs mt-2">最后更新: {note.updatedAt}</p>
       </div>
 
+      {/* Search Bar */}
+      <div style={{ marginBottom: '1rem' }}>
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: '1rem' }}>🔍</span>
+          <input
+            type="text"
+            placeholder="搜索病种、标记物..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ width: '100%', padding: '0.75rem 0.875rem 0.75rem 2.5rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--foreground)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
+          />
+        </div>
+        {searchResults && (
+          <div style={{ marginTop: '0.5rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.15)' }}>
+            {searchResults.diseases.length === 0 && searchResults.markers.length === 0 && (
+              <div style={{ padding: '1rem', color: 'var(--muted)', textAlign: 'center' }}>未找到相关病种或标记物</div>
+            )}
+            {searchResults.diseases.length > 0 && (
+              <div>
+                <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>病种</div>
+                {searchResults.diseases.map((d: any) => (
+                  <a key={d.slug} href={`/knowledge/${d.system}/${d.slug}`}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', textDecoration: 'none' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <div><div style={{ fontWeight: 500 }}>{d.diseaseZh}</div><div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{d.disease}</div></div>
+                    <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>→</span>
+                  </a>
+                ))}
+              </div>
+            )}
+            {searchResults.markers.length > 0 && (
+              <div>
+                <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>标记物</div>
+                {searchResults.markers.map((m: any) => (
+                  <div key={m.slug} onClick={() => {
+                    fetch(`/api/markers/${encodeURIComponent(m.slug)}`)
+                      .then(r => r.json())
+                      .then(data => {
+                        if (data.content) { setMarkerModal({ slug: m.name || m.slug, content: data.content }); setSearchQuery(''); setSearchResults(null); }
+                      });
+                  }}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', cursor: 'pointer' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <div style={{ fontWeight: 500 }}>{m.name || m.slug}</div>
+                    <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>↗</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Tabs */}
       <div
         className="flex gap-1 overflow-x-auto mb-6"
@@ -578,63 +635,6 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
           ? <MarkdownContent content={treatmentText} />
           : <p style={{ color: 'var(--muted)' }}>暂无治疗方案内容</p>
       )}
-
-      {/* Search Bar */}
-      <div style={{ marginBottom: '1rem' }}>
-        <div style={{ position: 'relative' }}>
-          <span style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: '1rem' }}>🔍</span>
-          <input
-            type="text"
-            placeholder="搜索病种、标记物..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{ width: '100%', padding: '0.75rem 0.875rem 0.75rem 2.5rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--foreground)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
-          />
-        </div>
-        {searchResults && (
-          <div style={{ marginTop: '0.5rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.15)' }}>
-            {searchResults.diseases.length === 0 && searchResults.markers.length === 0 && (
-              <div style={{ padding: '1rem', color: 'var(--muted)', textAlign: 'center' }}>未找到相关病种或标记物</div>
-            )}
-            {searchResults.diseases.length > 0 && (
-              <div>
-                <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>病种</div>
-                {searchResults.diseases.map((d: any) => (
-                  <a key={d.slug} href={`/knowledge/${d.system}/${d.slug}`}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', textDecoration: 'none' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <div><div style={{ fontWeight: 500 }}>{d.diseaseZh}</div><div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{d.disease}</div></div>
-                    <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>→</span>
-                  </a>
-                ))}
-              </div>
-            )}
-            {searchResults.markers.length > 0 && (
-              <div>
-                <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>标记物</div>
-                {searchResults.markers.map((m: any) => (
-                  <div key={m.slug} onClick={() => {
-                    fetch(`/api/markers/${encodeURIComponent(m.slug)}`)
-                      .then(r => r.json())
-                      .then(data => {
-                        if (data.content) { setMarkerModal({ slug: m.name || m.slug, content: data.content }); setSearchQuery(''); setSearchResults(null); }
-                      });
-                  }}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', cursor: 'pointer' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <div style={{ fontWeight: 500 }}>{m.name || m.slug}</div>
-                    <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>↗</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Marker detail modal */}
       {markerModal && (
