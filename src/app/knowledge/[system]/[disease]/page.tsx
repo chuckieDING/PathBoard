@@ -39,6 +39,7 @@ interface Note {
   clinicalSignificance: string;
   ihcMarkers: IHCMarker[];
   differentialDiagnosis: string[];
+  treatment?: string;
   guidelines: Guideline[];
   literature: Literature[];
   status: 'todo' | 'in-progress' | 'done';
@@ -83,7 +84,7 @@ function IHCBadge({ result }: { result: string }) {
 
 
 // Beautiful IHC marker card component
-function MarkerCard({ marker }: { marker: IHCMarker }) {
+function MarkerCard({ marker, onClick }: { marker: IHCMarker; onClick?: () => void }) {
   // Parse intensity from result string
   const parseIntensity = (result: string): { level: number; label: string; color: string } => {
     const upper = result.toUpperCase();
@@ -142,8 +143,9 @@ function MarkerCard({ marker }: { marker: IHCMarker }) {
 
   return (
     <div
-      className="rounded-xl border p-4 transition-all hover:shadow-md"
+      className="rounded-xl border p-4 transition-all hover:shadow-md cursor-pointer"
       style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+      onClick={onClick}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-3">
@@ -196,6 +198,9 @@ function MarkerCard({ marker }: { marker: IHCMarker }) {
           {marker.description}
         </p>
       )}
+      <p className="text-xs mt-2 leading-relaxed" style={{ color: 'var(--muted)' }}>
+        点击查看详情 →
+      </p>
     </div>
   );
 }
@@ -279,13 +284,100 @@ function MarkdownContent({ content }: { content: string }) {
   );
 }
 
-type TabId = 'overview' | 'gross' | 'microscopy' | 'ihc' | 'diff' | 'guidelines' | 'literature';
+// Marker detail modal with formatted YAML frontmatter
+function MarkerModal({ slug, content, onClose }: { slug: string; content: string; onClose: () => void }) {
+  const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  let frontmatter: Record<string, any> = {};
+  let bodyContent = content;
+  if (yamlMatch) {
+    for (const line of yamlMatch[1].split('\n')) {
+      const colonIdx = line.indexOf(':');
+      if (colonIdx > 0) {
+        const key = line.slice(0, colonIdx).trim();
+        const value = line.slice(colonIdx + 1).trim();
+        if (value.startsWith('[') && value.endsWith(']')) {
+          frontmatter[key] = value.slice(1, -1).split(',').map((s: string) => s.trim()).filter(Boolean);
+        } else {
+          frontmatter[key] = value;
+        }
+      }
+    }
+    bodyContent = content.slice(yamlMatch[0].length).trim();
+  }
+
+  const drugColors: Record<string, string> = {
+    '吉非替尼': '#6366f1', '厄洛替尼': '#6366f1', '奥希替尼': '#8b5cf6',
+    '阿美替尼': '#8b5cf6', '伏美替尼': '#8b5cf6', '克唑替尼': '#ec4899',
+    '阿来替尼': '#ec4899', '布格替尼': '#ec4899', '劳拉替尼': '#ec4899',
+    '曲妥珠单抗': '#f59e0b', '帕妥珠单抗': '#f59e0b', 'T-DM1': '#f59e0b',
+    'DS-8201': '#f59e0b', '德喜曲妥珠单抗': '#f59e0b', '拉罗替尼': '#14b8a6',
+    '恩曲替尼': '#14b8a6', '他莫昔芬': '#f97316', '来曲唑': '#f97316',
+    '阿那曲唑': '#f97316', '氟维司群': '#f97316', '芳香化酶抑制剂': '#f97316',
+    'Pembrolizumab': '#22c55e', '帕博利珠单抗': '#22c55e', 'Nivolumab': '#22c55e',
+    '纳武利尤单抗': '#22c55e', 'Atezolizumab': '#22c55e', '阿替利珠单抗': '#22c55e',
+    'Durvalumab': '#22c55e', '度伐利尤单抗': '#22c55e',
+    '达拉非尼': '#3b82f6', '曲美替尼': '#3b82f6', 'Sotorasib': '#3b82f6',
+    '索托拉西布': '#3b82f6', 'Adagrasib': '#3b82f6',
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={onClose}>
+      <div style={{ background: 'var(--card)', borderRadius: '16px', maxWidth: '720px', width: '100%', maxHeight: '85vh', overflow: 'auto', border: '1px solid var(--border)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '1.5rem 2rem 1rem', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--card)', zIndex: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--foreground)' }}>{frontmatter['标记物'] || slug}</h2>
+              {frontmatter['英文名'] && <p style={{ margin: '0.25rem 0 0', color: 'var(--muted)', fontSize: '0.875rem', fontStyle: 'italic' }}>{frontmatter['英文名']}</p>}
+            </div>
+            <button onClick={onClose} style={{ background: 'var(--card-hover)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '1rem', cursor: 'pointer', padding: '0.5rem 0.75rem', color: 'var(--muted)' }}>✕</button>
+          </div>
+        </div>
+        <div style={{ padding: '1.5rem 2rem 2rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
+            {frontmatter['系统'] && <div style={{ background: 'var(--card-hover)', borderRadius: '10px', padding: '0.875rem' }}><div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.25rem', fontWeight: 600 }}>系统/器官</div><div style={{ fontSize: '0.9rem', color: 'var(--foreground)' }}>{frontmatter['系统']}</div></div>}
+            {frontmatter['功能'] && <div style={{ background: 'var(--card-hover)', borderRadius: '10px', padding: '0.875rem' }}><div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.25rem', fontWeight: 600 }}>功能</div><div style={{ fontSize: '0.9rem', color: 'var(--foreground)' }}>{frontmatter['功能']}</div></div>}
+          </div>
+          {frontmatter['判读标准'] && <div style={{ marginBottom: '1.25rem' }}><div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.5rem', fontWeight: 600 }}>判读标准</div><div style={{ background: 'var(--card-hover)', borderRadius: '10px', padding: '0.875rem', fontSize: '0.9rem', color: 'var(--foreground)' }}>{frontmatter['判读标准']}</div></div>}
+          {frontmatter['临床意义'] && <div style={{ marginBottom: '1.25rem' }}><div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.5rem', fontWeight: 600 }}>临床意义</div><div style={{ background: 'var(--card-hover)', borderRadius: '10px', padding: '0.875rem', fontSize: '0.9rem', color: 'var(--foreground)' }}>{frontmatter['临床意义']}</div></div>}
+          {frontmatter['相关疾病'] && Array.isArray(frontmatter['相关疾病']) && frontmatter['相关疾病'].length > 0 && (
+            <div style={{ marginBottom: '1.25rem' }}>
+              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.5rem', fontWeight: 600 }}>相关疾病</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {frontmatter['相关疾病'].map((d: string, i: number) => <span key={i} style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '20px', padding: '0.25rem 0.75rem', fontSize: '0.8rem', fontWeight: 500 }}>{d}</span>)}
+              </div>
+            </div>
+          )}
+          {frontmatter['相关靶向药'] && Array.isArray(frontmatter['相关靶向药']) && frontmatter['相关靶向药'].length > 0 && (
+            <div style={{ marginBottom: '1.25rem' }}>
+              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.5rem', fontWeight: 600 }}>相关靶向药</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {frontmatter['相关靶向药'].map((drug: string, i: number) => {
+                  const color = drugColors[drug] || '#64748b';
+                  return <span key={i} style={{ background: color + '20', color, border: `1px solid ${color}40`, borderRadius: '20px', padding: '0.25rem 0.75rem', fontSize: '0.8rem', fontWeight: 500 }}>{drug}</span>;
+                })}
+              </div>
+            </div>
+          )}
+          {bodyContent && <div><div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.75rem', fontWeight: 600 }}>详细内容</div><MarkdownContent content={bodyContent} /></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type TabId = 'overview' | 'gross' | 'microscopy' | 'ihc' | 'diff' | 'guidelines' | 'literature' | 'treatment';
 
 export default function DiseasePage({ params }: { params: Promise<{ system: string; disease: string }> }) {
   const { system, disease } = use(params);
   const [note, setNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [markerModal, setMarkerModal] = useState<{ slug: string; content: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{
+    diseases: { slug: string; system: string; disease: string; diseaseZh: string }[];
+    markers: { slug: string; name: string }[];
+  } | null>(null);
 
   useEffect(() => {
     fetch(`/api/notes/${system}/${disease}`)
@@ -293,6 +385,32 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
       .then(data => { setNote(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, [system, disease]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults(null); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const [notesRes, markersRes] = await Promise.all([
+          fetch('/api/notes'),
+          fetch('/api/markers')
+        ]);
+        const notes = await notesRes.json();
+        const markers = await markersRes.json();
+        const q = searchQuery.toLowerCase();
+        const matchedDiseases = notes.filter((n: any) =>
+          n.diseaseZh.includes(q) || n.disease.toLowerCase().includes(q) || n.systemZh.includes(q)
+        ).map((n: any) => ({ slug: n.slug, system: n.system, disease: n.disease, diseaseZh: n.diseaseZh }));
+        const matchedMarkers = markers.filter((m: any) =>
+          m.slug.toLowerCase().includes(q) || m.content.toLowerCase().includes(q)
+        ).map((m: any) => {
+          const nameMatch = m.content.match(/^标记物:\s*(.+)$/m);
+          return { slug: m.slug, name: nameMatch ? nameMatch[1] : m.slug };
+        });
+        setSearchResults({ diseases: matchedDiseases, markers: matchedMarkers });
+      } catch {}
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   if (loading) {
     return (
@@ -323,6 +441,7 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
   const microscopyText = extractSection(note.rawContent, '病理特征（镜下所见）');
   const diffText = extractSection(note.rawContent, '鉴别诊断');
   const clinicalText = extractSection(note.rawContent, '临床意义');
+  const treatmentText = extractSection(note.rawContent, '治疗方案');
 
   const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: 'overview', label: '📖 概述' },
@@ -332,6 +451,7 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
     { id: 'diff', label: '⚖️ 鉴别诊断', count: note.differentialDiagnosis?.length || (diffText ? 1 : 0) },
     { id: 'guidelines', label: '📋 指南', count: note.guidelines?.length },
     { id: 'literature', label: '📚 文献', count: note.literature?.length },
+    { id: 'treatment', label: '💊 治疗方案', count: treatmentText ? 1 : 0 },
   ];
 
   return (
@@ -419,6 +539,12 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
           : <p style={{ color: 'var(--muted)' }}>暂无镜下特征内容</p>
       )}
 
+      {activeTab === 'diff' && (
+        diffText
+          ? <MarkdownContent content={diffText} />
+          : <Card><p style={{ color: 'var(--muted)' }}>暂无鉴别诊断信息</p></Card>
+      )}
+
       {activeTab === 'ihc' && (
         !note.ihcMarkers || note.ihcMarkers.length === 0 ? (
           <Card>
@@ -427,16 +553,96 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {note.ihcMarkers.map((m, i) => (
-              <MarkerCard key={i} marker={m} />
+              <MarkerCard
+                key={i}
+                marker={m}
+                onClick={() => {
+                  const slug = m.marker.replace(/[（(][^)）]+[)）]$/, '');
+                  fetch(`/api/markers/${encodeURIComponent(slug)}`)
+                    .then(r => r.ok ? r.json() : Promise.reject())
+                    .then(data => {
+                      if (data.content) setMarkerModal({ slug, content: data.content });
+                    })
+                    .catch(() => {
+                      setMarkerModal({ slug, content: `## ${m.marker}\n\n**结果**: ${m.result}\n\n（暂无详细说明）` });
+                    });
+                }}
+              />
             ))}
           </div>
         )
       )}
 
-      {activeTab === 'diff' && (
-        diffText
-          ? <MarkdownContent content={diffText} />
-          : <Card><p style={{ color: 'var(--muted)' }}>暂无鉴别诊断信息</p></Card>
+      {activeTab === 'treatment' && (
+        treatmentText
+          ? <MarkdownContent content={treatmentText} />
+          : <p style={{ color: 'var(--muted)' }}>暂无治疗方案内容</p>
+      )}
+
+      {/* Search Bar */}
+      <div style={{ marginBottom: '1rem' }}>
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: '1rem' }}>🔍</span>
+          <input
+            type="text"
+            placeholder="搜索病种、标记物..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ width: '100%', padding: '0.75rem 0.875rem 0.75rem 2.5rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--foreground)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
+          />
+        </div>
+        {searchResults && (
+          <div style={{ marginTop: '0.5rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.15)' }}>
+            {searchResults.diseases.length === 0 && searchResults.markers.length === 0 && (
+              <div style={{ padding: '1rem', color: 'var(--muted)', textAlign: 'center' }}>未找到相关病种或标记物</div>
+            )}
+            {searchResults.diseases.length > 0 && (
+              <div>
+                <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>病种</div>
+                {searchResults.diseases.map((d: any) => (
+                  <a key={d.slug} href={`/knowledge/${d.system}/${d.slug}`}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', textDecoration: 'none' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <div><div style={{ fontWeight: 500 }}>{d.diseaseZh}</div><div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{d.disease}</div></div>
+                    <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>→</span>
+                  </a>
+                ))}
+              </div>
+            )}
+            {searchResults.markers.length > 0 && (
+              <div>
+                <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>标记物</div>
+                {searchResults.markers.map((m: any) => (
+                  <div key={m.slug} onClick={() => {
+                    fetch(`/api/markers/${encodeURIComponent(m.slug)}`)
+                      .then(r => r.json())
+                      .then(data => {
+                        if (data.content) { setMarkerModal({ slug: m.name || m.slug, content: data.content }); setSearchQuery(''); setSearchResults(null); }
+                      });
+                  }}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', cursor: 'pointer' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <div style={{ fontWeight: 500 }}>{m.name || m.slug}</div>
+                    <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>↗</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Marker detail modal */}
+      {markerModal && (
+        <MarkerModal
+          slug={markerModal.slug}
+          content={markerModal.content}
+          onClose={() => setMarkerModal(null)}
+        />
       )}
 
       {activeTab === 'guidelines' && (
@@ -482,7 +688,6 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
           ) : (
             <div className="space-y-4">
               {note.literature.map((l, i) => {
-                // 构建本地全文HTML路径（如果已下载）
                 const localHtmlPath = l.localHtml
                   ? `/literature/${system}/${disease}/${l.localHtml}`
                   : l.pmcid
@@ -511,10 +716,7 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
                       {l.pmcid && <><span>·</span><span>PMC: {l.pmcid}</span></>}
                     </div>
                     <p className="text-sm leading-relaxed mb-3" style={{ color: 'var(--foreground)', opacity: 0.8 }}>{l.summary}</p>
-
-                    {/* 文献操作按钮 */}
                     <div className="flex flex-wrap items-center gap-2">
-                      {/* 本地HTML全文（已下载到服务器） */}
                       {localHtmlPath && (
                         <a
                           href={localHtmlPath}
@@ -526,7 +728,6 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
                           📖 在线阅读
                         </a>
                       )}
-                      {/* 跳转链接（源地址） */}
                       {jumpLink && (
                         <a
                           href={jumpLink}

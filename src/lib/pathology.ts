@@ -25,6 +25,7 @@ export interface PathologyNote {
   ihcMarkers: IHCMarker[];
   differentialDiagnosis: string[];
   clinicalSignificance: string;
+  treatment?: string;
   guidelines: { name: string; summary: string; url?: string }[];
   literature: { title: string; journal: string; year: number; pmid?: string; pmcid?: string; summary: string; url?: string; localHtml?: string; jumpUrl?: string }[];
   status: 'todo' | 'in-progress' | 'done';
@@ -128,6 +129,10 @@ function parseMarkdownMeta(content: string): Partial<PathologyNote> & { rawConte
     }
   }
 
+  // Parse treatment section
+  const treatSection = content.match(/## 治疗方案\n([\s\S]*?)(?=\n## |\Z)/i);
+  if (treatSection) result['treatment'] = treatSection[1].trim();
+
   // Parse microscopy images
   const microscopy: MicroscopyFeature[] = [];
   const microSection = content.match(/## 病理特征\n([\s\S]*?)(?=## |\n##|$)/i);
@@ -184,6 +189,7 @@ export async function getAllNotes(): Promise<PathologyNote[]> {
           ? (typeof parsed.differentialDiagnosis === 'string' ? [parsed.differentialDiagnosis] : parsed.differentialDiagnosis)
           : [],
         clinicalSignificance: parsed.clinicalSignificance || '',
+        treatment: parsed.treatment || '',
         guidelines: parsed.guidelines || [],
         literature: parsed.literature || [],
         status: (parsed.status as PathologyNote['status']) || 'todo',
@@ -217,6 +223,7 @@ export async function getNote(system: string, disease: string): Promise<Patholog
       ? (typeof parsed.differentialDiagnosis === 'string' ? [parsed.differentialDiagnosis] : parsed.differentialDiagnosis)
       : [],
     clinicalSignificance: parsed.clinicalSignificance || '',
+    treatment: parsed.treatment || '',
     guidelines: parsed.guidelines || [],
     literature: parsed.literature || [],
     status: (parsed.status as PathologyNote['status']) || 'todo',
