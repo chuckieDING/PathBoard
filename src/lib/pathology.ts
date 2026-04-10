@@ -129,6 +129,10 @@ function parseMarkdownMeta(content: string): Partial<PathologyNote> & { rawConte
     }
   }
 
+  // Parse overview section
+  const overviewSection = content.match(/## 疾病概述\n([\s\S]*?)(?=\n## |\Z)/i);
+  if (overviewSection) result['overview'] = overviewSection[1].trim();
+
   // Parse treatment section
   const treatSection = content.match(/## 治疗方案\n([\s\S]*?)(?=\n## |\Z)/i);
   if (treatSection) result['treatment'] = treatSection[1].trim();
@@ -234,4 +238,83 @@ export async function getNote(system: string, disease: string): Promise<Patholog
 
 export async function getSystems() {
   return SYSTEMS;
+}
+
+// Marker types
+export interface PathologyMarker {
+  slug: string;
+  name: string;
+  nameEn: string;
+  abbreviation: string;
+  system: string;
+  function: string;
+  interpretation: string;
+  clinicalSignificance: string;
+  relatedDiseases: string[];
+  relatedTargetedTherapies: string[];
+  content: string;
+}
+
+export function parseMarkerMarkdown(content: string): PathologyMarker {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const yaml = require('js-yaml');
+
+  let yamlMeta: Record<string, unknown> = {};
+  const lines = content.split('\n');
+
+  // Try YAML frontmatter parsing first
+  const yamlStart = lines.findIndex(l => l.trim() === '---');
+  if (yamlStart >= 0) {
+    const yamlEnd = lines.findIndex((l, i) => i > yamlStart && l.trim() === '---');
+    if (yamlEnd > yamlStart) {
+      const yamlContent = lines.slice(yamlStart + 1, yamlEnd).join('\n');
+      try {
+        yamlMeta = yaml.load(yamlContent) as Record<string, unknown>;
+      } catch {
+        // Fall back
+      }
+    }
+  }
+
+  return {
+    slug: '',
+    name: String(yamlMeta['标记物'] || ''),
+    nameEn: String(yamlMeta['英文名'] || ''),
+    abbreviation: String(yamlMeta['缩写'] || ''),
+    system: String(yamlMeta['系统'] || ''),
+    function: String(yamlMeta['功能'] || ''),
+    interpretation: String(yamlMeta['判读标准'] || ''),
+    clinicalSignificance: String(yamlMeta['临床意义'] || ''),
+    relatedDiseases: Array.isArray(yamlMeta['相关疾病']) ? yamlMeta['相关疾病'] as string[] : [],
+    relatedTargetedTherapies: Array.isArray(yamlMeta['相关靶向药']) ? yamlMeta['相关靶向药'] as string[] : [],
+    content,
+  };
+}
+
+export async function getAllMarkers(): Promise<PathologyMarker[]> {
+  const markersDir = path.join(LEARNING_DIR, 'markers');
+  if (!fs.existsSync(markersDir)) return [];
+
+  const files = fs.readdirSync(markersDir).filter(f => f.endsWith('.md'));
+  const markers: PathologyMarker[] = [];
+
+  for (const file of files) {
+    const slug = file.replace('.md', '');
+    const filePath = path.join(markersDir, file);
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const parsed = parseMarkerMarkdown(content);
+    markers.push({ ...parsed, slug });
+  }
+
+  return markers;
+}
+
+export async function getMarker(slug: string): Promise<PathologyMarker | null> {
+  const markersDir = path.join(LEARNING_DIR, 'markers');
+  const filePath = path.join(markersDir, `${slug}.md`);
+  if (!fs.existsSync(filePath)) return null;
+
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const parsed = parseMarkerMarkdown(content);
+  return { ...parsed, slug };
 }
