@@ -1,5 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const yaml = require('js-yaml');
+
+// ── Shared Types ──────────────────────────────────────────────────
 
 export interface IHCMarker {
   marker: string;
@@ -27,7 +31,11 @@ export interface PathologyNote {
   clinicalSignificance: string;
   treatment?: string;
   guidelines: { name: string; summary: string; url?: string }[];
-  literature: { title: string; journal: string; year: number; pmid?: string; pmcid?: string; summary: string; url?: string; localHtml?: string; jumpUrl?: string }[];
+  literature: {
+    title: string; journal: string; year: number;
+    pmid?: string; pmcid?: string; summary: string;
+    url?: string; localHtml?: string; jumpUrl?: string;
+  }[];
   status: 'todo' | 'in-progress' | 'done';
   updatedAt: string;
   rawContent?: string;
@@ -40,33 +48,67 @@ export interface KanbanColumn {
   items: PathologyNote[];
 }
 
-const LEARNING_DIR = '/root/.openclaw/workspace/pathology-learning';
-const SYSTEMS = [
+export interface PathologyMarker {
+  slug: string;
+  name: string;
+  nameEn: string;
+  abbreviation: string;
+  system: string;
+  function: string;
+  interpretation: string;
+  clinicalSignificance: string;
+  relatedDiseases: string[];
+  relatedTargetedTherapies: string[];
+  content: string;
+}
+
+// ── Constants ─────────────────────────────────────────────────────
+
+const LEARNING_DIR = process.env.PATHOLOGY_DATA_DIR || /*turbopackIgnore: true*/ '/root/.openclaw/workspace/pathology-learning';
+
+export const SYSTEMS = [
   { key: 'breast', zh: '乳腺病理' },
   { key: 'lung', zh: '肺部病理' },
   { key: 'gi', zh: '消化系统病理' },
-];
+] as const;
+
+// Subspecialty definitions with related systems
+export const SUBSPECIALTIES = [
+  { key: 'breast-pathology', zh: '乳腺病理', systems: ['breast'], icon: '🔬', color: '#f472b6' },
+  { key: 'pulmonary-pathology', zh: '肺部病理', systems: ['lung'], icon: '🫁', color: '#60a5fa' },
+  { key: 'gi-pathology', zh: '消化病理', systems: ['gi'], icon: '🟠', color: '#fb923c' },
+  { key: 'molecular-pathology', zh: '分子病理', systems: ['breast', 'lung', 'gi'], icon: '🧬', color: '#a78bfa' },
+  { key: 'immunohistochemistry', zh: '免疫组化', systems: ['breast', 'lung', 'gi'], icon: '🧪', color: '#34d399' },
+  { key: 'cytopathology', zh: '细胞病理', systems: ['breast', 'lung', 'gi'], icon: '🔭', color: '#fbbf24' },
+] as const;
+
+// ── YAML Frontmatter Parser (unified) ─────────────────────────────
+
+function parseYamlFrontmatter(content: string): { meta: Record<string, unknown>; body: string } {
+  const lines = content.split('\n');
+  const yamlStart = lines.findIndex(l => l.trim() === '---');
+
+  if (yamlStart < 0) return { meta: {}, body: content };
+
+  const yamlEnd = lines.findIndex((l, i) => i > yamlStart && l.trim() === '---');
+  if (yamlEnd <= yamlStart) return { meta: {}, body: content };
+
+  const yamlContent = lines.slice(yamlStart + 1, yamlEnd).join('\n');
+  let meta: Record<string, unknown> = {};
+  try {
+    meta = yaml.load(yamlContent) as Record<string, unknown>;
+  } catch {
+    // Invalid YAML, return empty meta
+  }
+
+  const body = lines.slice(yamlEnd + 1).join('\n');
+  return { meta, body };
+}
+
+// ── Note Parsing ──────────────────────────────────────────────────
 
 function parseMarkdownMeta(content: string): Partial<PathologyNote> & { rawContent: string } {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const yaml = require('js-yaml');
-
-  let yamlMeta: Record<string, unknown> = {};
-  const lines = content.split('\n');
-
-  // Try YAML frontmatter parsing first
-  const yamlStart = lines.findIndex(l => l.trim() === '---');
-  if (yamlStart >= 0) {
-    const yamlEnd = lines.findIndex((l, i) => i > yamlStart && l.trim() === '---');
-    if (yamlEnd > yamlStart) {
-      const yamlContent = lines.slice(yamlStart + 1, yamlEnd).join('\n');
-      try {
-        yamlMeta = yaml.load(yamlContent) as Record<string, unknown>;
-      } catch {
-        // Fall back to old parsing
-      }
-    }
-  }
+  const { meta: yamlMeta } = parseYamlFrontmatter(content);
 
   // Key mapping: Chinese YAML keys -> English output keys
   const keyMap: Record<string, string> = {
@@ -78,7 +120,6 @@ function parseMarkdownMeta(content: string): Partial<PathologyNote> & { rawConte
 
   const result: Record<string, unknown> = {};
 
-  // Map simple keys
   for (const [cn, en] of Object.entries(keyMap)) {
     if (yamlMeta[cn] !== undefined) {
       result[en] = yamlMeta[cn];
@@ -109,9 +150,9 @@ function parseMarkdownMeta(content: string): Partial<PathologyNote> & { rawConte
     }));
   }
 
-  // Parse IHC markers from markdown body
+  // Parse IHC markers from markdown body (fixed: \Z -> $)
   const ihcMarkers: IHCMarker[] = [];
-  const ihcSection = content.match(/## 免疫组化标记物\n([\s\S]*?)(?=\n## |\Z)/i);
+  const ihcSection = content.match(/## 免疫组化标记物\n([\s\S]*?)(?=\n## |$)/i);
   if (ihcSection) {
     for (const line of ihcSection[1].split('\n')) {
       const m = line.match(/^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|[^\n]*$/);
@@ -129,12 +170,12 @@ function parseMarkdownMeta(content: string): Partial<PathologyNote> & { rawConte
     }
   }
 
-  // Parse overview section
-  const overviewSection = content.match(/## 疾病概述\n([\s\S]*?)(?=\n## |\Z)/i);
+  // Parse overview section (fixed: \Z -> $)
+  const overviewSection = content.match(/## 疾病概述\n([\s\S]*?)(?=\n## |$)/i);
   if (overviewSection) result['overview'] = overviewSection[1].trim();
 
-  // Parse treatment section
-  const treatSection = content.match(/## 治疗方案\n([\s\S]*?)(?=\n## |\Z)/i);
+  // Parse treatment section (fixed: \Z -> $)
+  const treatSection = content.match(/## 治疗方案\n([\s\S]*?)(?=\n## |$)/i);
   if (treatSection) result['treatment'] = treatSection[1].trim();
 
   // Parse microscopy images
@@ -154,6 +195,7 @@ function parseMarkdownMeta(content: string): Partial<PathologyNote> & { rawConte
   }
 
   // Raw content starts after first markdown heading
+  const lines = content.split('\n');
   const rawContentStart = lines.findIndex(l => l.startsWith('## ') || l.startsWith('# '));
 
   return {
@@ -163,6 +205,28 @@ function parseMarkdownMeta(content: string): Partial<PathologyNote> & { rawConte
     rawContent: rawContentStart >= 0 ? lines.slice(rawContentStart).join('\n') : content,
   };
 }
+
+// ── Marker Parsing ────────────────────────────────────────────────
+
+export function parseMarkerMarkdown(content: string): PathologyMarker {
+  const { meta: yamlMeta } = parseYamlFrontmatter(content);
+
+  return {
+    slug: '',
+    name: String(yamlMeta['标记物'] || ''),
+    nameEn: String(yamlMeta['英文名'] || ''),
+    abbreviation: String(yamlMeta['缩写'] || ''),
+    system: String(yamlMeta['系统'] || ''),
+    function: String(yamlMeta['功能'] || ''),
+    interpretation: String(yamlMeta['判读标准'] || ''),
+    clinicalSignificance: String(yamlMeta['临床意义'] || ''),
+    relatedDiseases: Array.isArray(yamlMeta['相关疾病']) ? yamlMeta['相关疾病'] as string[] : [],
+    relatedTargetedTherapies: Array.isArray(yamlMeta['相关靶向药']) ? yamlMeta['相关靶向药'] as string[] : [],
+    content,
+  };
+}
+
+// ── Data Access Functions ─────────────────────────────────────────
 
 export async function getAllNotes(): Promise<PathologyNote[]> {
   const notes: PathologyNote[] = [];
@@ -177,9 +241,8 @@ export async function getAllNotes(): Promise<PathologyNote[]> {
       const filePath = path.join(sysDir, file);
       const content = fs.readFileSync(filePath, 'utf-8');
       const parsed = parseMarkdownMeta(content);
-
       const stat = fs.statSync(filePath);
-      
+
       notes.push({
         slug,
         system: sys.key as PathologyNote['system'],
@@ -189,7 +252,7 @@ export async function getAllNotes(): Promise<PathologyNote[]> {
         overview: parsed.overview || '',
         microscopy: parsed.microscopy || [],
         ihcMarkers: parsed.ihcMarkers || [],
-        differentialDiagnosis: parsed.differentialDiagnosis 
+        differentialDiagnosis: parsed.differentialDiagnosis
           ? (typeof parsed.differentialDiagnosis === 'string' ? [parsed.differentialDiagnosis] : parsed.differentialDiagnosis)
           : [],
         clinicalSignificance: parsed.clinicalSignificance || '',
@@ -206,6 +269,9 @@ export async function getAllNotes(): Promise<PathologyNote[]> {
 }
 
 export async function getNote(system: string, disease: string): Promise<PathologyNote | null> {
+  // Path traversal protection
+  if (system.includes('..') || disease.includes('..')) return null;
+
   const filePath = path.join(LEARNING_DIR, system, `${disease}.md`);
   if (!fs.existsSync(filePath)) return null;
 
@@ -223,7 +289,7 @@ export async function getNote(system: string, disease: string): Promise<Patholog
     overview: parsed.overview || '',
     microscopy: parsed.microscopy || [],
     ihcMarkers: parsed.ihcMarkers || [],
-    differentialDiagnosis: parsed.differentialDiagnosis 
+    differentialDiagnosis: parsed.differentialDiagnosis
       ? (typeof parsed.differentialDiagnosis === 'string' ? [parsed.differentialDiagnosis] : parsed.differentialDiagnosis)
       : [],
     clinicalSignificance: parsed.clinicalSignificance || '',
@@ -238,57 +304,6 @@ export async function getNote(system: string, disease: string): Promise<Patholog
 
 export async function getSystems() {
   return SYSTEMS;
-}
-
-// Marker types
-export interface PathologyMarker {
-  slug: string;
-  name: string;
-  nameEn: string;
-  abbreviation: string;
-  system: string;
-  function: string;
-  interpretation: string;
-  clinicalSignificance: string;
-  relatedDiseases: string[];
-  relatedTargetedTherapies: string[];
-  content: string;
-}
-
-export function parseMarkerMarkdown(content: string): PathologyMarker {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const yaml = require('js-yaml');
-
-  let yamlMeta: Record<string, unknown> = {};
-  const lines = content.split('\n');
-
-  // Try YAML frontmatter parsing first
-  const yamlStart = lines.findIndex(l => l.trim() === '---');
-  if (yamlStart >= 0) {
-    const yamlEnd = lines.findIndex((l, i) => i > yamlStart && l.trim() === '---');
-    if (yamlEnd > yamlStart) {
-      const yamlContent = lines.slice(yamlStart + 1, yamlEnd).join('\n');
-      try {
-        yamlMeta = yaml.load(yamlContent) as Record<string, unknown>;
-      } catch {
-        // Fall back
-      }
-    }
-  }
-
-  return {
-    slug: '',
-    name: String(yamlMeta['标记物'] || ''),
-    nameEn: String(yamlMeta['英文名'] || ''),
-    abbreviation: String(yamlMeta['缩写'] || ''),
-    system: String(yamlMeta['系统'] || ''),
-    function: String(yamlMeta['功能'] || ''),
-    interpretation: String(yamlMeta['判读标准'] || ''),
-    clinicalSignificance: String(yamlMeta['临床意义'] || ''),
-    relatedDiseases: Array.isArray(yamlMeta['相关疾病']) ? yamlMeta['相关疾病'] as string[] : [],
-    relatedTargetedTherapies: Array.isArray(yamlMeta['相关靶向药']) ? yamlMeta['相关靶向药'] as string[] : [],
-    content,
-  };
 }
 
 export async function getAllMarkers(): Promise<PathologyMarker[]> {
@@ -310,6 +325,9 @@ export async function getAllMarkers(): Promise<PathologyMarker[]> {
 }
 
 export async function getMarker(slug: string): Promise<PathologyMarker | null> {
+  // Path traversal protection
+  if (slug.includes('..') || slug.includes('/')) return null;
+
   const markersDir = path.join(LEARNING_DIR, 'markers');
   const filePath = path.join(markersDir, `${slug}.md`);
   if (!fs.existsSync(filePath)) return null;
@@ -317,4 +335,55 @@ export async function getMarker(slug: string): Promise<PathologyMarker | null> {
   const content = fs.readFileSync(filePath, 'utf-8');
   const parsed = parseMarkerMarkdown(content);
   return { ...parsed, slug };
+}
+
+// ── Aggregation Helpers ───────────────────────────────────────────
+
+export async function getAllGuidelines(): Promise<{ disease: string; diseaseZh: string; system: string; systemZh: string; slug: string; guidelines: PathologyNote['guidelines'] }[]> {
+  const notes = await getAllNotes();
+  return notes
+    .filter(n => n.guidelines && n.guidelines.length > 0)
+    .map(n => ({
+      disease: n.disease,
+      diseaseZh: n.diseaseZh,
+      system: n.system,
+      systemZh: n.systemZh,
+      slug: n.slug,
+      guidelines: n.guidelines,
+    }));
+}
+
+export async function getAllLiterature(): Promise<{ disease: string; diseaseZh: string; system: string; systemZh: string; slug: string; literature: PathologyNote['literature'] }[]> {
+  const notes = await getAllNotes();
+  return notes
+    .filter(n => n.literature && n.literature.length > 0)
+    .map(n => ({
+      disease: n.disease,
+      diseaseZh: n.diseaseZh,
+      system: n.system,
+      systemZh: n.systemZh,
+      slug: n.slug,
+      literature: n.literature,
+    }));
+}
+
+// Build cross-reference map: marker slug -> related diseases
+export async function getMarkerDiseaseMap(): Promise<Record<string, { disease: string; diseaseZh: string; system: string; slug: string }[]>> {
+  const notes = await getAllNotes();
+  const map: Record<string, { disease: string; diseaseZh: string; system: string; slug: string }[]> = {};
+
+  for (const note of notes) {
+    for (const ihc of note.ihcMarkers) {
+      const markerSlug = ihc.marker.replace(/\*\*/g, '').replace(/[（(][^)）]+[)）]$/, '').trim();
+      if (!map[markerSlug]) map[markerSlug] = [];
+      map[markerSlug].push({
+        disease: note.disease,
+        diseaseZh: note.diseaseZh,
+        system: note.system,
+        slug: note.slug,
+      });
+    }
+  }
+
+  return map;
 }

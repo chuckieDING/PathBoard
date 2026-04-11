@@ -1,17 +1,21 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
 const NAV_LINKS = [
-  { href: '/', label: '看板' },
-  { href: '/knowledge', label: '知识库' },
-  { href: '/guidelines', label: '指南' },
-  { href: '/literature', label: '文献' },
+  { href: '/', label: '看板', icon: '🗂️' },
+  { href: '/knowledge', label: '知识库', icon: '📚' },
+  { href: '/markers', label: '标记物', icon: '🧪' },
+  { href: '/subspecialty', label: '亚专科', icon: '🏥' },
+  { href: '/guidelines', label: '指南', icon: '📋' },
+  { href: '/literature', label: '文献', icon: '📖' },
 ];
 
 export function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
     <nav
@@ -24,46 +28,45 @@ export function Navbar() {
       }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        {/* Desktop / Mobile shared row */}
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
-          <span className="font-bold text-lg" style={{ color: 'var(--accent)' }}>🧬 PathBoard</span>
+          <Link href="/" className="font-bold text-lg flex-shrink-0" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
+            🧬 PathBoard
+          </Link>
 
-          {/* Desktop nav — hidden on mobile */}
-          <div className="hidden sm:flex items-center gap-6 text-sm">
-            {NAV_LINKS.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                style={{ color: 'var(--muted)' }}
-                className="nav-link"
-              >
-                {label}
-              </Link>
-            ))}
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-1 text-sm">
+            {NAV_LINKS.map(({ href, label, icon }) => {
+              const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className="nav-link px-3 py-1.5 rounded-lg transition-colors"
+                  style={{
+                    color: isActive ? 'var(--foreground)' : 'var(--muted)',
+                    backgroundColor: isActive ? 'var(--card-hover)' : 'transparent',
+                  }}
+                >
+                  <span className="mr-1">{icon}</span>
+                  {label}
+                </Link>
+              );
+            })}
           </div>
 
           {/* Right controls */}
           <div className="flex items-center gap-3">
-            {/* Mobile hamburger — shown only on small screens */}
+            {/* Mobile hamburger */}
             <button
-              className="sm:hidden flex flex-col justify-center items-center w-9 h-9 gap-1.5 rounded-lg border transition-colors"
+              className="md:hidden flex flex-col justify-center items-center w-9 h-9 gap-1.5 rounded-lg border transition-colors"
               style={{ borderColor: 'var(--border)', backgroundColor: 'transparent' }}
               onClick={() => setMenuOpen(v => !v)}
               aria-label="菜单"
             >
-              <span
-                className="block w-5 h-0.5 rounded-full transition-all"
-                style={{ backgroundColor: 'var(--foreground)', transform: menuOpen ? 'rotate(45deg) translateY(4px)' : 'none' }}
-              />
-              <span
-                className="block w-5 h-0.5 rounded-full transition-all"
-                style={{ backgroundColor: 'var(--foreground)', opacity: menuOpen ? 0 : 1 }}
-              />
-              <span
-                className="block w-5 h-0.5 rounded-full transition-all"
-                style={{ backgroundColor: 'var(--foreground)', transform: menuOpen ? 'rotate(-45deg) translateY(-4px)' : 'none' }}
-              />
+              <span className="block w-5 h-0.5 rounded-full transition-all" style={{ backgroundColor: 'var(--foreground)', transform: menuOpen ? 'rotate(45deg) translateY(4px)' : 'none' }} />
+              <span className="block w-5 h-0.5 rounded-full transition-all" style={{ backgroundColor: 'var(--foreground)', opacity: menuOpen ? 0 : 1 }} />
+              <span className="block w-5 h-0.5 rounded-full transition-all" style={{ backgroundColor: 'var(--foreground)', transform: menuOpen ? 'rotate(-45deg) translateY(-4px)' : 'none' }} />
             </button>
 
             {/* Theme toggle */}
@@ -88,24 +91,26 @@ export function Navbar() {
 
         {/* Mobile dropdown menu */}
         {menuOpen && (
-          <div
-            className="sm:hidden border-t py-3 space-y-1"
-            style={{ borderColor: 'var(--border)' }}
-          >
-            {NAV_LINKS.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                className="block px-2 py-3 text-sm rounded-lg transition-colors"
-                style={{ color: 'var(--muted)' }}
-                onClick={() => setMenuOpen(false)}
-                onMouseEnter={e => (e.currentTarget.style.color = 'var(--foreground)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'var(--muted)')}
-              >
-                {label}
-              </Link>
-            ))}
-            <div className="pt-2 px-2 text-xs" style={{ color: 'var(--muted)' }}>
+          <div className="md:hidden border-t py-2 space-y-0.5" style={{ borderColor: 'var(--border)' }}>
+            {NAV_LINKS.map(({ href, label, icon }) => {
+              const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className="flex items-center gap-2 px-3 py-3 text-sm rounded-lg transition-colors"
+                  style={{
+                    color: isActive ? 'var(--foreground)' : 'var(--muted)',
+                    backgroundColor: isActive ? 'var(--card-hover)' : 'transparent',
+                  }}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <span>{icon}</span>
+                  {label}
+                </Link>
+              );
+            })}
+            <div className="pt-2 px-3 text-xs" style={{ color: 'var(--muted)' }}>
               病理科 AI 学习系统
             </div>
           </div>
@@ -114,11 +119,13 @@ export function Navbar() {
 
       <style>{`
         .nav-link {
-          transition: color 0.2s ease;
+          transition: color 0.2s ease, background-color 0.2s ease;
           -webkit-tap-highlight-color: transparent;
+          text-decoration: none;
         }
         .nav-link:hover {
           color: var(--foreground) !important;
+          background-color: var(--card-hover) !important;
         }
       `}</style>
     </nav>

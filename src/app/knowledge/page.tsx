@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 
 interface Note {
@@ -12,6 +12,13 @@ interface Note {
   status: 'todo' | 'in-progress' | 'done';
 }
 
+interface Marker {
+  slug: string;
+  name: string;
+  nameEn: string;
+  content: string;
+}
+
 const SYSTEMS = [
   { key: 'breast', zh: '乳腺病理', emoji: '🔬', accentColor: '#f472b6' },
   { key: 'lung', zh: '肺部病理', emoji: '🫁', accentColor: '#60a5fa' },
@@ -20,54 +27,38 @@ const SYSTEMS = [
 
 export default function KnowledgePage() {
   const [notes, setNotes] = useState<Note[]>([]);
+  const [markers, setMarkers] = useState<Marker[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<{
-    diseases: Note[];
-    markers: { slug: string; name: string }[];
-  } | null>(null);
 
   useEffect(() => {
-    fetch('/api/notes')
-      .then(r => r.json())
-      .then(data => { setNotes(Array.isArray(data) ? data : []); setLoading(false); })
+    Promise.all([
+      fetch('/api/notes').then(r => r.json()),
+      fetch('/api/markers').then(r => r.json()),
+    ])
+      .then(([notesData, markersData]) => {
+        setNotes(Array.isArray(notesData) ? notesData : []);
+        setMarkers(Array.isArray(markersData) ? markersData : []);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, []);
 
-  // Search handler with debounce
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults(null);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      try {
-        const [notesRes, markersRes] = await Promise.all([
-          fetch('/api/notes'),
-          fetch('/api/markers')
-        ]);
-        const allNotes = await notesRes.json();
-        const allMarkers = await markersRes.json();
-        const q = searchQuery.toLowerCase();
+  // Search results computed from already-loaded data (no redundant fetches)
+  const searchResults = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return null;
 
-        // Search diseases
-        const matchedDiseases = allNotes.filter((n: Note) =>
-          n.diseaseZh.includes(q) || n.disease.toLowerCase().includes(q) || n.systemZh.includes(q)
-        );
+    const matchedDiseases = notes.filter(n =>
+      n.diseaseZh.includes(q) || n.disease.toLowerCase().includes(q) || n.systemZh.includes(q)
+    );
 
-        // Search markers
-        const matchedMarkers = allMarkers.filter((m: { slug: string; content: string }) =>
-          m.slug.toLowerCase().includes(q) || m.content.toLowerCase().includes(q)
-        ).map((m: { slug: string; content: string }) => {
-          const nameMatch = m.content.match(/^标记物:\s*(.+)$/m);
-          return { slug: m.slug, name: nameMatch ? nameMatch[1] : m.slug };
-        });
+    const matchedMarkers = markers
+      .filter(m => m.slug.toLowerCase().includes(q) || m.name?.toLowerCase().includes(q) || m.nameEn?.toLowerCase().includes(q) || m.content?.toLowerCase().includes(q))
+      .map(m => ({ slug: m.slug, name: m.name || m.nameEn || m.slug }));
 
-        setSearchResults({ diseases: matchedDiseases, markers: matchedMarkers });
-      } catch {}
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    return { diseases: matchedDiseases, markers: matchedMarkers };
+  }, [searchQuery, notes, markers]);
 
   if (loading) {
     return (
@@ -77,11 +68,36 @@ export default function KnowledgePage() {
     );
   }
 
+  const totalDone = notes.filter(n => n.status === 'done').length;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <div className="mb-8">
+      <div className="mb-6">
+        <div className="flex items-center gap-2 text-sm mb-4" style={{ color: 'var(--muted)' }}>
+          <Link href="/" className="hover:opacity-80" style={{ color: 'var(--muted)' }}>看板</Link>
+          <span>/</span>
+          <span style={{ color: 'var(--foreground)' }}>知识库</span>
+        </div>
         <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--foreground)' }}>📚 病理知识库</h1>
-        <p className="text-sm" style={{ color: 'var(--muted)' }}>覆盖乳腺、肺部、消化系统三大方向的病理学学习笔记</p>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          覆盖乳腺、肺部、消化系统三大方向的病理学学习笔记 · {totalDone}/{notes.length} 已完成
+        </p>
+      </div>
+
+      {/* Quick nav to related modules */}
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
+        <Link href="/markers" className="text-xs px-3 py-2 rounded-full transition-colors flex-shrink-0" style={{ backgroundColor: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.25)' }}>
+          🧪 标记物学习
+        </Link>
+        <Link href="/subspecialty" className="text-xs px-3 py-2 rounded-full transition-colors flex-shrink-0" style={{ backgroundColor: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)' }}>
+          🏥 亚专科学习
+        </Link>
+        <Link href="/guidelines" className="text-xs px-3 py-2 rounded-full transition-colors flex-shrink-0" style={{ backgroundColor: 'rgba(99,102,241,0.12)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.25)' }}>
+          📋 临床指南
+        </Link>
+        <Link href="/literature" className="text-xs px-3 py-2 rounded-full transition-colors flex-shrink-0" style={{ backgroundColor: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.25)' }}>
+          📖 文献管理
+        </Link>
       </div>
 
       {/* Search Bar */}
@@ -107,7 +123,7 @@ export default function KnowledgePage() {
                 {searchResults.diseases.map((d: Note) => (
                   <Link key={d.slug} href={`/knowledge/${d.system}/${d.slug}`}
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', textDecoration: 'none' }}
-                    onClick={() => { setSearchQuery(''); setSearchResults(null); }}
+                    onClick={() => setSearchQuery('')}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
@@ -121,15 +137,15 @@ export default function KnowledgePage() {
               <div>
                 <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>标记物</div>
                 {searchResults.markers.map((m: { slug: string; name: string }) => (
-                  <div key={m.slug}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', cursor: 'pointer' }}
-                    onClick={() => { setSearchQuery(''); setSearchResults(null); }}
+                  <Link key={m.slug} href="/markers"
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', textDecoration: 'none' }}
+                    onClick={() => setSearchQuery('')}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
                     <div style={{ fontWeight: 500 }}>{m.name || m.slug}</div>
                     <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>↗</span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -154,48 +170,35 @@ export default function KnowledgePage() {
                   <p className="text-xs" style={{ color: 'var(--muted)' }}>{done}/{sysNotes.length} 已完成学习</p>
                 </div>
               </div>
-              <div
-                className="text-xs px-3 py-1 rounded-full border"
-                style={{ color: sys.accentColor, borderColor: 'rgba(0,0,0,0.1)' }}
-              >
+              <div className="text-xs px-3 py-1 rounded-full border" style={{ color: sys.accentColor, borderColor: 'rgba(0,0,0,0.1)' }}>
                 {sysNotes.length} 个病种
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {sysNotes.length === 0 ? (
-                <div
-                  className="text-sm col-span-full py-8 text-center"
-                  style={{ color: 'var(--muted)', opacity: 0.5 }}
-                >
+                <div className="text-sm col-span-full py-8 text-center" style={{ color: 'var(--muted)', opacity: 0.5 }}>
                   暂无笔记，AI 正在生成中...
                 </div>
               ) : (
                 sysNotes.map(note => {
                   const dotColor = note.status === 'done' ? '#22c55e' : note.status === 'in-progress' ? '#f59e0b' : 'var(--muted)';
-                  const borderAccent = note.status === 'done' ? 'var(--border)' : note.status === 'in-progress' ? 'rgba(245,158,11,0.3)' : 'var(--border)';
+                  const borderAccent = note.status === 'in-progress' ? 'rgba(245,158,11,0.3)' : 'var(--border)';
                   return (
                     <Link
                       key={note.slug}
                       href={`/knowledge/${note.system}/${note.slug}`}
                       className="group block rounded-xl p-4 border transition-all"
                       style={{ backgroundColor: 'var(--card-hover)', borderColor: borderAccent }}
-                      onMouseEnter={e => {
-                        (e.currentTarget as HTMLAnchorElement).style.borderColor = sys.accentColor;
-                      }}
-                      onMouseLeave={e => {
-                        (e.currentTarget as HTMLAnchorElement).style.borderColor = borderAccent;
-                      }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = sys.accentColor; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = borderAccent; }}
                     >
                       <div className="flex items-start justify-between">
                         <div>
                           <div className="font-medium text-sm mb-0.5" style={{ color: 'var(--foreground)' }}>{note.diseaseZh}</div>
                           <div className="text-xs" style={{ color: 'var(--muted)' }}>{note.disease}</div>
                         </div>
-                        <div
-                          className="w-2 h-2 rounded-full mt-1.5"
-                          style={{ backgroundColor: dotColor }}
-                        />
+                        <div className="w-2 h-2 rounded-full mt-1.5" style={{ backgroundColor: dotColor }} />
                       </div>
                     </Link>
                   );

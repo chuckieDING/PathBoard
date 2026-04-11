@@ -22,47 +22,30 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      {/* Hidden theme toggle checkbox — :has() in CSS reads this to switch themes */}
-      {/* Placed before React loads so CSS :has() works on first paint */}
-      {/* Init checkbox: OS preference first, then localStorage, default light */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            (function() {
-              var key = 'pathboard-theme';
-              var saved = localStorage.getItem(key);
-              var toggle = document.getElementById('theme-toggle');
-              if (toggle) {
-                // Priority: 1) saved preference, 2) OS preference, 3) default light
-                var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                var osIsDark = prefersDark ? true : false;
-                // If user has explicitly saved a preference, use it
-                if (saved === 'light') toggle.checked = false;
-                else if (saved === 'dark') toggle.checked = true;
-                else toggle.checked = !osIsDark; // no saved pref: OS says dark -> light mode; OS says light -> light mode (default)
-              }
-            })();
-          `,
-        }}
-      />
-      {/* Sync checkbox changes to localStorage */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            (function() {
-              var toggle = document.getElementById('theme-toggle');
-              if (toggle) {
-                toggle.addEventListener('change', function() {
-                  localStorage.setItem('pathboard-theme', this.checked ? 'light' : 'dark');
-                });
-              }
-            })();
-          `,
-        }}
-      />
       <body className="antialiased min-h-screen" style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
-        {/* Hidden checkbox — CSS :has(#theme-toggle:checked) applies dark theme */}
+        {/* Hidden checkbox — CSS :has(#theme-toggle:checked) applies light theme */}
         <input type="checkbox" id="theme-toggle" style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }} />
+        {/* Theme init script — runs after checkbox exists in DOM */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){
+              var key='pathboard-theme';
+              var toggle=document.getElementById('theme-toggle');
+              if(!toggle)return;
+              var saved=null;
+              try{saved=localStorage.getItem(key)}catch(e){}
+              if(saved==='light') toggle.checked=true;
+              else if(saved==='dark') toggle.checked=false;
+              else{
+                var prefersDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches;
+                toggle.checked=!prefersDark;
+              }
+              toggle.addEventListener('change',function(){
+                try{localStorage.setItem(key,this.checked?'light':'dark')}catch(e){}
+              });
+            })();`,
+          }}
+        />
         <Navbar />
         <main>{children}</main>
       </body>

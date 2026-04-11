@@ -2,14 +2,28 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-const LITERATURE_BASE = '/root/.openclaw/workspace/pathology-learning/literature';
+const LITERATURE_BASE = process.env.PATHOLOGY_DATA_DIR
+  ? path.join(process.env.PATHOLOGY_DATA_DIR, 'literature')
+  : '/root/.openclaw/workspace/pathology-learning/literature';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path: pathParts } = await params;
+
+  // Path traversal protection
+  if (pathParts.some(p => p.includes('..') || p.includes('\0'))) {
+    return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
+  }
+
   const filePath = path.join(LITERATURE_BASE, ...pathParts);
+
+  // Ensure resolved path is within LITERATURE_BASE
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(path.resolve(LITERATURE_BASE))) {
+    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+  }
 
   if (!fs.existsSync(filePath)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
