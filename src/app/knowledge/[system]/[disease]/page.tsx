@@ -25,8 +25,8 @@ interface Literature {
   pmcid?: string;
   summary: string;
   url?: string;
-  localHtml?: string;  // e.g. "PMC5597459.html" — 已下载到服务器的全文HTML
-  jumpUrl?: string;   // 源地址跳转链接
+  localHtml?: string;
+  jumpUrl?: string;
 }
 
 interface Note {
@@ -55,16 +55,12 @@ const SYSTEMS = [
 
 function extractSection(content: string, heading: string): string {
   const escaped = heading.replace(/[.*+?^${}|[\]\\]/g, '\\$&');
-  // Stop at next \n## (## must be at line start, preventing table | rows from matching) or end of file
   const re = new RegExp('## ' + escaped + '(?:[^\n]*\n\n)?([\\s\\S]*?)(?=\\n## |\\Z)', '');
   const m = content.match(re);
   return m ? m[1].trim() : '';
 }
 
-
-// Beautiful IHC marker card component
 function MarkerCard({ marker, onClick }: { marker: IHCMarker; onClick?: () => void }) {
-  // Parse intensity from result string
   const parseIntensity = (result: string): { level: number; label: string; color: string } => {
     const upper = result.toUpperCase();
     const percentMatch = result.match(/(\d+)%/);
@@ -96,7 +92,6 @@ function MarkerCard({ marker, onClick }: { marker: IHCMarker; onClick?: () => vo
   const intensity = parseIntensity(marker.result);
   const levels = [0, 1, 2, 3];
 
-  // Extract zh label from marker name like "ER（雌激素受体）"
   const zhMatch = marker.marker.match(/[（(]([^)）]+)[)）]$/);
   const zhLabel = zhMatch ? zhMatch[1] : null;
   const displayName = zhLabel ? marker.marker.replace(/[（(][^)）]+[)）]$/, '') : marker.marker;
@@ -107,7 +102,6 @@ function MarkerCard({ marker, onClick }: { marker: IHCMarker; onClick?: () => vo
       style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
       onClick={onClick}
     >
-      {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div>
           <div className="font-mono font-bold text-base" style={{ color: 'var(--foreground)' }}>
@@ -119,7 +113,6 @@ function MarkerCard({ marker, onClick }: { marker: IHCMarker; onClick?: () => vo
             </div>
           )}
         </div>
-        {/* Result badge */}
         <span
           className="text-sm font-semibold px-2 py-1 rounded-lg shrink-0"
           style={{ backgroundColor: intensity.color + '20', color: intensity.color }}
@@ -128,7 +121,6 @@ function MarkerCard({ marker, onClick }: { marker: IHCMarker; onClick?: () => vo
         </span>
       </div>
 
-      {/* Intensity bar */}
       <div className="mb-2">
         <div className="flex gap-1.5">
           {levels.map(lvl => (
@@ -152,7 +144,6 @@ function MarkerCard({ marker, onClick }: { marker: IHCMarker; onClick?: () => vo
         </div>
       </div>
 
-      {/* Description */}
       {marker.description && (
         <p className="text-xs mt-2 leading-relaxed" style={{ color: 'var(--muted)' }}>
           {marker.description}
@@ -165,8 +156,6 @@ function MarkerCard({ marker, onClick }: { marker: IHCMarker; onClick?: () => vo
   );
 }
 
-
-// All card backgrounds use CSS variable --card so theme switching works
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <div
@@ -178,7 +167,6 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
   );
 }
 
-// Section heading that adapts to theme
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h3
@@ -190,7 +178,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Markdown renderer configured for theme variables
 function MarkdownContent({ content }: { content: string }) {
   return (
     <div className="markdown-content" style={{ color: 'var(--foreground)' }}>
@@ -235,7 +222,6 @@ function MarkdownContent({ content }: { content: string }) {
   );
 }
 
-// Marker detail modal with formatted YAML frontmatter
 function MarkerModal({ slug, content, onClose }: { slug: string; content: string; onClose: () => void }) {
   const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
   const frontmatter: Record<string, string | string[]> = {};
@@ -324,11 +310,6 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [markerModal, setMarkerModal] = useState<{ slug: string; content: string } | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<{
-    diseases: { slug: string; system: string; disease: string; diseaseZh: string }[];
-    markers: { slug: string; name: string }[];
-  } | null>(null);
 
   useEffect(() => {
     fetch(`/api/notes/${system}/${disease}`)
@@ -336,35 +317,6 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
       .then(data => { setNote(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, [system, disease]);
-
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      const timer = setTimeout(() => setSearchResults(null), 0);
-      return () => clearTimeout(timer);
-    }
-    const timer = setTimeout(async () => {
-      try {
-        const [notesRes, markersRes] = await Promise.all([
-          fetch('/api/notes'),
-          fetch('/api/markers')
-        ]);
-        const notes = await notesRes.json();
-        const markers = await markersRes.json();
-        const q = searchQuery.toLowerCase();
-        const matchedDiseases = notes.filter((n: Note) =>
-          n.diseaseZh.includes(q) || n.disease.toLowerCase().includes(q) || n.systemZh.includes(q)
-        ).map((n: Note) => ({ slug: n.slug, system: n.system, disease: n.disease, diseaseZh: n.diseaseZh }));
-        const matchedMarkers = markers.filter((m: { slug: string; content: string }) =>
-          m.slug.toLowerCase().includes(q) || m.content.toLowerCase().includes(q)
-        ).map((m: { slug: string; content: string }) => {
-          const nameMatch = m.content.match(/^标记物:\s*(.+)$/m);
-          return { slug: m.slug, name: nameMatch ? nameMatch[1] : m.slug };
-        });
-        setSearchResults({ diseases: matchedDiseases, markers: matchedMarkers });
-      } catch {}
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
 
   if (loading) {
     return (
@@ -389,7 +341,6 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
 
   const sys = SYSTEMS.find(s => s.key === system);
 
-  // Pre-extract markdown sections
   const overviewText = extractSection(note.rawContent, '疾病概述');
   const grossText = extractSection(note.rawContent, '大体观察');
   const microscopyText = extractSection(note.rawContent, '病理特征（镜下所见）');
@@ -443,63 +394,6 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
           </div>
         </div>
         <p style={{ color: 'var(--muted)' }} className="text-xs mt-2">最后更新: {note.updatedAt}</p>
-      </div>
-
-      {/* Search Bar */}
-      <div style={{ marginBottom: '1rem' }}>
-        <div style={{ position: 'relative' }}>
-          <span style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: '1rem' }}>🔍</span>
-          <input
-            type="text"
-            placeholder="搜索病种、标记物..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{ width: '100%', padding: '0.75rem 0.875rem 0.75rem 2.5rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--foreground)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
-          />
-        </div>
-        {searchResults && (
-          <div style={{ marginTop: '0.5rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.15)' }}>
-            {searchResults.diseases.length === 0 && searchResults.markers.length === 0 && (
-              <div style={{ padding: '1rem', color: 'var(--muted)', textAlign: 'center' }}>未找到相关病种或标记物</div>
-            )}
-            {searchResults.diseases.length > 0 && (
-              <div>
-                <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>病种</div>
-                {searchResults.diseases.map((d: { slug: string; system: string; disease: string; diseaseZh: string }) => (
-                  <a key={d.slug} href={`/knowledge/${d.system}/${d.slug}`}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', textDecoration: 'none' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <div><div style={{ fontWeight: 500 }}>{d.diseaseZh}</div><div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{d.disease}</div></div>
-                    <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>→</span>
-                  </a>
-                ))}
-              </div>
-            )}
-            {searchResults.markers.length > 0 && (
-              <div>
-                <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>标记物</div>
-                {searchResults.markers.map((m: { slug: string; name: string }) => (
-                  <div key={m.slug} onClick={() => {
-                    fetch(`/api/markers/${encodeURIComponent(m.slug)}`)
-                      .then(r => r.json())
-                      .then(data => {
-                        if (data.content) { setMarkerModal({ slug: m.name || m.slug, content: data.content }); setSearchQuery(''); setSearchResults(null); }
-                      });
-                  }}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', cursor: 'pointer' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <div style={{ fontWeight: 500 }}>{m.name || m.slug}</div>
-                    <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>↗</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Tabs */}

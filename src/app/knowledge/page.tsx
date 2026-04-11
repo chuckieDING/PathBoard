@@ -21,6 +21,11 @@ const SYSTEMS = [
 export default function KnowledgePage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{
+    diseases: Note[];
+    markers: { slug: string; name: string }[];
+  } | null>(null);
 
   useEffect(() => {
     fetch('/api/notes')
@@ -28,6 +33,41 @@ export default function KnowledgePage() {
       .then(data => { setNotes(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
+
+  // Search handler with debounce
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const [notesRes, markersRes] = await Promise.all([
+          fetch('/api/notes'),
+          fetch('/api/markers')
+        ]);
+        const allNotes = await notesRes.json();
+        const allMarkers = await markersRes.json();
+        const q = searchQuery.toLowerCase();
+
+        // Search diseases
+        const matchedDiseases = allNotes.filter((n: Note) =>
+          n.diseaseZh.includes(q) || n.disease.toLowerCase().includes(q) || n.systemZh.includes(q)
+        );
+
+        // Search markers
+        const matchedMarkers = allMarkers.filter((m: { slug: string; content: string }) =>
+          m.slug.toLowerCase().includes(q) || m.content.toLowerCase().includes(q)
+        ).map((m: { slug: string; content: string }) => {
+          const nameMatch = m.content.match(/^标记物:\s*(.+)$/m);
+          return { slug: m.slug, name: nameMatch ? nameMatch[1] : m.slug };
+        });
+
+        setSearchResults({ diseases: matchedDiseases, markers: matchedMarkers });
+      } catch {}
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   if (loading) {
     return (
@@ -42,6 +82,59 @@ export default function KnowledgePage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--foreground)' }}>📚 病理知识库</h1>
         <p className="text-sm" style={{ color: 'var(--muted)' }}>覆盖乳腺、肺部、消化系统三大方向的病理学学习笔记</p>
+      </div>
+
+      {/* Search Bar */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ position: 'relative', maxWidth: '480px' }}>
+          <span style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: '1rem' }}>🔍</span>
+          <input
+            type="text"
+            placeholder="搜索病种、标记物..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ width: '100%', padding: '0.75rem 0.875rem 0.75rem 2.5rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--foreground)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
+          />
+        </div>
+        {searchResults && (
+          <div style={{ marginTop: '0.5rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', maxWidth: '480px' }}>
+            {searchResults.diseases.length === 0 && searchResults.markers.length === 0 && (
+              <div style={{ padding: '1rem', color: 'var(--muted)', textAlign: 'center' }}>未找到相关病种或标记物</div>
+            )}
+            {searchResults.diseases.length > 0 && (
+              <div>
+                <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>病种</div>
+                {searchResults.diseases.map((d: Note) => (
+                  <Link key={d.slug} href={`/knowledge/${d.system}/${d.slug}`}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', textDecoration: 'none' }}
+                    onClick={() => { setSearchQuery(''); setSearchResults(null); }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <div><div style={{ fontWeight: 500 }}>{d.diseaseZh}</div><div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{d.disease}</div></div>
+                    <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>→</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+            {searchResults.markers.length > 0 && (
+              <div>
+                <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>标记物</div>
+                {searchResults.markers.map((m: { slug: string; name: string }) => (
+                  <div key={m.slug}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', cursor: 'pointer' }}
+                    onClick={() => { setSearchQuery(''); setSearchResults(null); }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <div style={{ fontWeight: 500 }}>{m.name || m.slug}</div>
+                    <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>↗</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {SYSTEMS.map(sys => {

@@ -24,7 +24,7 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning>
       {/* Hidden theme toggle checkbox — :has() in CSS reads this to switch themes */}
       {/* Placed before React loads so CSS :has() works on first paint */}
-      {/* Init checkbox from localStorage before React hydrates */}
+      {/* Init checkbox: OS preference first, then localStorage, default light */}
       <script
         dangerouslySetInnerHTML={{
           __html: `
@@ -33,8 +33,13 @@ export default function RootLayout({
               var saved = localStorage.getItem(key);
               var toggle = document.getElementById('theme-toggle');
               if (toggle) {
-                if (saved === 'light') toggle.checked = true;
-                else toggle.checked = false; // default dark
+                // Priority: 1) saved preference, 2) OS preference, 3) default light
+                var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                var osIsDark = prefersDark ? true : false;
+                // If user has explicitly saved a preference, use it
+                if (saved === 'light') toggle.checked = false;
+                else if (saved === 'dark') toggle.checked = true;
+                else toggle.checked = !osIsDark; // no saved pref: OS says dark -> light mode; OS says light -> light mode (default)
               }
             })();
           `,
