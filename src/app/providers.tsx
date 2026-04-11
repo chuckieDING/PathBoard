@@ -19,7 +19,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Update DOM immediately (synchronous, before React re-render)
     document.documentElement.classList.remove('dark', 'light');
     document.documentElement.classList.add(next);
-    try { localStorage.setItem(STORAGE_KEY, next); } catch (e) {}
+    try { localStorage.setItem(STORAGE_KEY, next); } catch {}
     // Update React state (async, triggers re-render)
     setTheme(next);
   }, [theme]);

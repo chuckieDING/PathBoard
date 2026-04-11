@@ -20,7 +20,8 @@ export function ThemeToggle() {
 
   useEffect(() => {
     // Init label from current theme (set by inline script in <head>)
-    setLabel(getTheme() === 'dark' ? '☀️ 浅色' : '🌙 深色');
+    // Defer to avoid cascading render warning from React 19
+    const timer = setTimeout(() => setLabel(getTheme() === 'dark' ? '☀️ 浅色' : '🌙 深色'), 0);
 
     // Bind a persistent onclick using addEventListener on the button itself
     // This avoids React's event delegation system entirely
@@ -34,7 +35,10 @@ export function ThemeToggle() {
     };
 
     btn.addEventListener('click', handler);
-    return () => btn.removeEventListener('click', handler);
+    return () => {
+      clearTimeout(timer);
+      btn.removeEventListener('click', handler);
+    };
   }, []);
 
   return (

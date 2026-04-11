@@ -13,7 +13,7 @@ export function initTheme() {
     document.documentElement.classList.add(theme);
     try {
       localStorage.setItem(STORAGE_KEY, theme);
-    } catch (e) {
+    } catch { // localStorage not available
       // localStorage may not be available
     }
   }
@@ -22,7 +22,7 @@ export function initTheme() {
   let saved = 'dark';
   try {
     saved = localStorage.getItem(STORAGE_KEY) || 'dark';
-  } catch (e) {}
+  } catch {}
 
   applyTheme(saved);
 }

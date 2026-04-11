@@ -61,27 +61,6 @@ function extractSection(content: string, heading: string): string {
   return m ? m[1].trim() : '';
 }
 
-function IHCBadge({ result }: { result: string }) {
-  const map: Record<string, { bg: string; text: string }> = {
-    '阳性': { bg: 'bg-green-900/50', text: 'text-green-400' },
-    '阴性': { bg: 'bg-red-900/50', text: 'text-red-400' },
-    '1+': { bg: 'bg-yellow-900/50', text: 'text-yellow-400' },
-    '2+': { bg: 'bg-orange-900/50', text: 'text-orange-400' },
-    '3+': { bg: 'bg-red-900/50', text: 'text-red-400' },
-    '+': { bg: 'bg-green-900/50', text: 'text-green-400' },
-    '++': { bg: 'bg-orange-900/50', text: 'text-orange-400' },
-    '+++': { bg: 'bg-red-900/50', text: 'text-red-400' },
-    '不明': { bg: 'bg-zinc-800', text: 'text-zinc-400' },
-  };
-  const style = map[result] || map['不明'];
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${style.bg} ${style.text}`}>
-      {result}
-    </span>
-  );
-}
-
-
 
 // Beautiful IHC marker card component
 function MarkerCard({ marker, onClick }: { marker: IHCMarker; onClick?: () => void }) {
@@ -116,25 +95,6 @@ function MarkerCard({ marker, onClick }: { marker: IHCMarker; onClick?: () => vo
 
   const intensity = parseIntensity(marker.result);
   const levels = [0, 1, 2, 3];
-
-  // Marker category label
-  const markerGroups: Record<string, { zh: string; color: string }> = {
-    'ER': { zh: '激素受体', color: '#ec4899' },
-    'PR': { zh: '激素受体', color: '#ec4899' },
-    'HER2': { zh: 'HER2', color: '#8b5cf6' },
-    'Ki-67': { zh: '增殖标记', color: '#f97316' },
-    'EGFR': { zh: '生长因子', color: '#06b6d4' },
-    'CK5/6': { zh: '基底型', color: '#6366f1' },
-    'CK14': { zh: '基底型', color: '#6366f1' },
-    'p63': { zh: '肌上皮', color: '#10b981' },
-    'SMA': { zh: '肌上皮', color: '#10b981' },
-    'Calponin': { zh: '肌上皮', color: '#10b981' },
-    'CD117': { zh: 'c-KIT', color: '#f59e0b' },
-    'CD10': { zh: ' stromal', color: '#84cc16' },
-  };
-
-  const group = Object.entries(markerGroups).find(([k]) => marker.marker.includes(k));
-  const tag = group ? group[1] : null;
 
   // Extract zh label from marker name like "ER（雌激素受体）"
   const zhMatch = marker.marker.match(/[（(]([^)）]+)[)）]$/);
@@ -230,15 +190,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Markdown text that adapts to theme
-function Muted({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <span className={className} style={{ color: 'var(--muted)' }}>
-      {children}
-    </span>
-  );
-}
-
 // Markdown renderer configured for theme variables
 function MarkdownContent({ content }: { content: string }) {
   return (
@@ -287,7 +238,7 @@ function MarkdownContent({ content }: { content: string }) {
 // Marker detail modal with formatted YAML frontmatter
 function MarkerModal({ slug, content, onClose }: { slug: string; content: string; onClose: () => void }) {
   const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
-  let frontmatter: Record<string, any> = {};
+  const frontmatter: Record<string, string | string[]> = {};
   let bodyContent = content;
   if (yamlMatch) {
     for (const line of yamlMatch[1].split('\n')) {
@@ -296,7 +247,7 @@ function MarkerModal({ slug, content, onClose }: { slug: string; content: string
         const key = line.slice(0, colonIdx).trim();
         const value = line.slice(colonIdx + 1).trim();
         if (value.startsWith('[') && value.endsWith(']')) {
-          frontmatter[key] = value.slice(1, -1).split(',').map((s: string) => s.trim()).filter(Boolean);
+          frontmatter[key] = value.slice(1, -1).split(',').map((s: string) => s.trim()).filter(Boolean) as string[];
         } else {
           frontmatter[key] = value;
         }
@@ -387,7 +338,10 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
   }, [system, disease]);
 
   useEffect(() => {
-    if (!searchQuery.trim()) { setSearchResults(null); return; }
+    if (!searchQuery.trim()) {
+      const timer = setTimeout(() => setSearchResults(null), 0);
+      return () => clearTimeout(timer);
+    }
     const timer = setTimeout(async () => {
       try {
         const [notesRes, markersRes] = await Promise.all([
@@ -397,12 +351,12 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
         const notes = await notesRes.json();
         const markers = await markersRes.json();
         const q = searchQuery.toLowerCase();
-        const matchedDiseases = notes.filter((n: any) =>
+        const matchedDiseases = notes.filter((n: Note) =>
           n.diseaseZh.includes(q) || n.disease.toLowerCase().includes(q) || n.systemZh.includes(q)
-        ).map((n: any) => ({ slug: n.slug, system: n.system, disease: n.disease, diseaseZh: n.diseaseZh }));
-        const matchedMarkers = markers.filter((m: any) =>
+        ).map((n: Note) => ({ slug: n.slug, system: n.system, disease: n.disease, diseaseZh: n.diseaseZh }));
+        const matchedMarkers = markers.filter((m: { slug: string; content: string }) =>
           m.slug.toLowerCase().includes(q) || m.content.toLowerCase().includes(q)
-        ).map((m: any) => {
+        ).map((m: { slug: string; content: string }) => {
           const nameMatch = m.content.match(/^标记物:\s*(.+)$/m);
           return { slug: m.slug, name: nameMatch ? nameMatch[1] : m.slug };
         });
@@ -440,7 +394,6 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
   const grossText = extractSection(note.rawContent, '大体观察');
   const microscopyText = extractSection(note.rawContent, '病理特征（镜下所见）');
   const diffText = extractSection(note.rawContent, '鉴别诊断');
-  const clinicalText = extractSection(note.rawContent, '临床意义');
   const treatmentText = extractSection(note.rawContent, '治疗方案');
 
   const tabs: { id: TabId; label: string; count?: number }[] = [
@@ -512,7 +465,7 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
             {searchResults.diseases.length > 0 && (
               <div>
                 <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>病种</div>
-                {searchResults.diseases.map((d: any) => (
+                {searchResults.diseases.map((d: { slug: string; system: string; disease: string; diseaseZh: string }) => (
                   <a key={d.slug} href={`/knowledge/${d.system}/${d.slug}`}
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', color: 'var(--foreground)', textDecoration: 'none' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hover)')}
@@ -527,7 +480,7 @@ export default function DiseasePage({ params }: { params: Promise<{ system: stri
             {searchResults.markers.length > 0 && (
               <div>
                 <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', background: 'var(--card-hover)', fontWeight: 600 }}>标记物</div>
-                {searchResults.markers.map((m: any) => (
+                {searchResults.markers.map((m: { slug: string; name: string }) => (
                   <div key={m.slug} onClick={() => {
                     fetch(`/api/markers/${encodeURIComponent(m.slug)}`)
                       .then(r => r.json())
